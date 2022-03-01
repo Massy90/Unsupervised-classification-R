@@ -1,0 +1,159 @@
+### Classifying Sentinel-2 images downloaded
+### from Google Earth Engine, to evaluate beta-Diversity of
+### forests dameged by fire, in Verkhoyansk, Russia, date: june 2019/2020
+
+# Instal and call packages
+install.packages("raster")
+install.packages("RStoolbox")
+install.packages("rgdal")
+library(sp)
+library(rgdal)
+library(raster)
+library(RStoolbox)
+library(rasterVis)
+library(viridis)
+# set wd
+getwd()
+
+# create raster with brick
+Verkhoyansk_2019_06_sent <- brick("Verkhoyansk_2019_06_sent.tif")
+Verkhoyansk_2020_06_sent <- brick("Verkhoyansk_2020_06_sent.tif")
+
+#RGB true and false 2019
+nf <- layout(matrix(c(1,0,2), 1, 3, byrow = TRUE), width = c(1,0.1,1), respect = TRUE)
+plotRGB(Verkhoyansk_2019_06_sent, r=4, g=3, b=2, axes= TRUE, stretch = "lin",  main = "True color Verkhoyansk 2019")
+plotRGB(Verkhoyansk_2020_06_sent, r=4, g=3, b=2,axes= TRUE, stretch = "lin",  main = "True color Verkhoyansk 2020")
+dev.off()
+
+nf <- layout(matrix(c(1,0,2), 1, 3, byrow = TRUE), width = c(0.7,0.1,0.7), respect = TRUE)
+plotRGB(Verkhoyansk_2019_06_sent, r=8, g=3, b=2, axes=TRUE, stretch = "lin", main = "False colors Verkhoyansk 2019")
+plotRGB(Verkhoyansk_2020_06_sent, r=8, g=3, b=2, axes=TRUE, stretch = "lin",  main = "False colors Verkhoyansk 2020")
+dev.off()
+
+par(mfrow=c(2,2))
+plotRGB(Verkhoyansk_2019_06_sent, r=4, g=3, b=2, stretch = "lin")
+plotRGB(Verkhoyansk_2020_06_sent, r=4, g=3, b=2, stretch = "lin")
+plotRGB(Verkhoyansk_2019_06_sent, r=8, g=3, b=2,axes = F,  stretch = "lin")
+plotRGB(Verkhoyansk_2020_06_sent, r=8, g=3, b=2,axes = F,  stretch = "lin")
+dev.off()
+## Clearly we can see the loss of vegetation in 2020
+### Export both ratser as jpeg (False colors)
+### (No code)
+
+# NDVI
+
+## The Normalized Difference Vegetation Index (NDVI) is index to determine 
+## live vegetation. It is obtainable from the following equation:
+## NDVI <- (NIR-RED)/(NIR+RED)
+
+### NDVI function
+VI <- function(img, k, i) {
+  bk <- img[[k]]
+  bi <- img[[i]]
+  vi <- (bk - bi) / (bk + bi)
+  return(vi)
+}
+### in this case 1 and 3 refer to the bands we'll use (NIR, RED)
+ndvi19 <- VI(Verkhoyansk_2019_06_sent, 8, 4)
+ndvi20 <- VI(Verkhoyansk_2020_06_sent, 8, 4)
+par(mfrow=c(1,2))
+plot(ndvi19, main="NDVI 2019")
+plot(ndvi20, main="NDVI 2020")
+
+# How Pixels of NDVI values are distributed?
+## let's see the outputs with their related histograms
+par(mfrow=c(2,2))
+plot(ndvi19, main="NDVI 2019")
+plot(ndvi20, main="NDVI 2020")
+hist(ndvi19,
+     main = "Distribution of NDVI values 2019",
+     xlab = "NDVI",
+     ylab= "Frequency",
+     col = "purple",
+     xlim = c(-0.5, 1),
+     breaks = 30,
+     xaxt = 'n')
+axis(side = 1, at = seq(-0.5,1, 0.05), labels = seq(-0.5,1, 0.05))
+hist(ndvi20,
+     main = "Distribution of NDVI values 2020",
+     xlab = "NDVI",
+     ylab= "Frequency",
+     col = "purple",
+     xlim = c(-0.5, 1),
+     breaks = 30,
+     xaxt = 'n')
+axis(side = 1, at = seq(-0.5,1, 0.05), labels = seq(-0.5,1, 0.05))
+dev.off()
+
+# Mask cells that have NDVI of less than 0.4 (less likely to be vegetation)
+veg19 <- reclassify(ndvi19, cbind(-Inf, 0.4, NA))
+veg20 <- reclassify(ndvi20, cbind(-Inf, 0.4, NA))
+# Reclassifying our objects and making all values between
+# negative infinity and 0.4 be NAs
+par(mfrow=c(1,2))
+plot(veg19, main = 'Veg cover19')
+ plot(veg20, main = 'Veg cover20')
+plot()
+dev.off()
+
+# Now creating classes for better see vegetation density, with 0 = no-vegetation
+vegc19 <- reclassify(veg19, c(-Inf,0.2,0, 0.2,0.3,1, 0.3,0.4,2, 0.4,0.5,3, 0.5, Inf, 4))
+vegc20 <- reclassify(veg20, c(-Inf,0.2,0, 0.2,0.3,1, 0.3,0.4,2, 0.4,0.5,3, 0.5, Inf, 4))
+par(mfrow=c(1,2))
+plot(vegc19, ylim= c(67.48,67.61) , main = 'Vegetation cover 2019')
+plot(vegc20,ylim= c(67.48,67.61), main = 'Vegetation cover 2020')
+dev.off()
+
+# Comparison between NDVI and Threshold Vegetation cover
+par(mfrow=c(2,2))
+plot(ndvi19, main="NDVI 2019")
+plot(ndvi20, main="NDVI 2020")
+plot(vegc19, main = 'Vegetation cover 2019')
+plot(vegc20, main = 'Vegetation cover 2020')
+dev.off()
+
+# Saving the data as integers = raster
+writeRaster(x = ndvi19,
+            filename="/Users/maninward/Desktop/AHAHAHAH_TESI/Verokhoyansk_ndvi_2019.tif", 	
+            format = "GTiff",
+            datatype = 'INT2S', overwrite=TRUE) # save as a INTEGER 
+writeRaster(x = ndvi20,
+            filename="/Users/maninward/Desktop/AHAHAHAH_TESI/Verokhoyansk_ndvi_2020.tif", 	
+            format = "GTiff",
+            datatype = 'INT2S', overwrite=TRUE) # save as a INTEGER
+## warning message appears because of crs missing to both ndvi objects
+crs(ndvi19) <- "+proj=longlat +datum=WGS84 +no_defs"
+crs(ndvi20) <- "+proj=longlat +datum=WGS84 +no_defs"
+writeRaster(ndvi19, "Verokhoyansk_ndvi_2019.tif", overwrite=T)
+writeRaster(ndvi20, "Verokhoyansk_ndvi_2020.tif", overwrite=T)
+
+# Unsupervised Classification
+
+## Use unsuperclass function in order to creates 2 classes
+s19 <- (unsuperClass(ndvi19, nClasses = 3))
+s20 <- (unsuperClass(ndvi20, nClasses = 3))
+par(mfrow=c(1,2))
+plot(s19$map)
+plot(s20$map)
+s19$map[s19$map==1] <- NA
+s20$map[s20$map==3] <- NA
+# value change
+s19$map[s19$map==2] <- 1
+s19$map[s19$map==3] <- 2
+
+par(mfrow=c(1,2))
+plot(s19$map, col = viridis_pal(option = "D")(10), main = "Vegetation cover 2019")
+plot(s20$map, col = viridis_pal(option = "D")(10), main="Vegetation cover 2020")
+dev.off()
+
+v19 <- s19$map
+v20 <- s20$map
+# write raster
+writeRaster(x = s19$map,
+            filename="/Users/maninward/Desktop/Verkhoyansk_tesi/s19map.tif", 	
+            format = "GTiff",
+            overwrite=TRUE)
+writeRaster(x = s20$map,
+            filename="/Users/maninward/Desktop/Verkhoyansk_tesi/s20map.tif", 	
+            format = "GTiff",
+            overwrite=TRUE) 
